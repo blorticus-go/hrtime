@@ -12,10 +12,32 @@ func TestMonotonicTicker(t *testing.T) {
 	ticker := hrtime.NewMonotonicTicker(time.Second)
 
 	if err := monotonicTicker10SecondTest(ticker); err != nil {
-		t.Errorf("on first round using the MonotonicTicker: %s", err.Error())
+		t.Fatalf("on first round using the MonotonicTicker: %s", err.Error())
 	}
 	if err := monotonicTicker10SecondTest(ticker); err != nil {
 		t.Errorf("on second round using the MonotonicTicker: %s", err.Error())
+	}
+
+	ticker = hrtime.NewMonotonicTicker(500 * time.Millisecond)
+
+	if err := ticker.Start(); err != nil {
+		t.Fatalf("on Start() for delay test: %s", err.Error())
+	}
+
+	time.Sleep(2 * time.Second)
+
+	ticksSinceLastChannelRead := <-ticker.C
+	if ticksSinceLastChannelRead < 3 || ticksSinceLastChannelRead > 5 {
+		t.Errorf("on read of channel after 2 second sleep, expected tick count to be in range 3..5, got %d", ticksSinceLastChannelRead)
+	}
+
+	ticksSinceLastChannelRead = <-ticker.C
+	if ticksSinceLastChannelRead != 1 {
+		t.Errorf("on read of channel after no sleep, expected tick count to be 1, got %d", ticksSinceLastChannelRead)
+	}
+
+	if err := ticker.Stop(); err != nil {
+		t.Errorf("on Stop(): %s", err.Error())
 	}
 }
 
@@ -33,7 +55,6 @@ func monotonicTicker10SecondTest(ticker *hrtime.MonotonicTicker) error {
 			select {
 			case _, open := <-ticker.C:
 				if !open {
-					fmt.Println("channel is closed")
 					selectRoundError = fmt.Errorf("channel is closed")
 					return
 				}

@@ -108,6 +108,7 @@ func (ticker *MonotonicTicker) Start() error {
 func monotonicTickerReadLoop(handles *tickerHandles) {
 	b := make([]byte, 8)
 
+	ticksSinceLastChannelRead := uint64(0)
 	for {
 		bytesRead, err := handles.tickFile.Read(b)
 		if bytesRead != 8 || err != nil {
@@ -116,7 +117,13 @@ func monotonicTickerReadLoop(handles *tickerHandles) {
 		}
 
 		// read bytes are in host byte order
-		handles.sharedChannel <- *(*uint64)(unsafe.Pointer(&b[0]))
+		ticksSinceLastChannelRead += *(*uint64)(unsafe.Pointer(&b[0]))
+
+		select {
+		case handles.sharedChannel <- ticksSinceLastChannelRead:
+			ticksSinceLastChannelRead = 0
+		default:
+		}
 	}
 }
 
